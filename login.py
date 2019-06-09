@@ -20,3 +20,9 @@ def login(vmanage_ip, username, password):
         if b'<html>' in login_response.content:
             print ("Login Failed")
             sys.exit(0)
+
+#successful login
+#login('172.18.179.126', 'jessicac', 'T3lu5123')
+
+#login failed
+#login('172.18.179.126', 'jessicac', 'wrongpw')
