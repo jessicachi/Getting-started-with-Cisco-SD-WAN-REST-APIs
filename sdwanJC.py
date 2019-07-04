@@ -50,7 +50,8 @@ class rest_api_lib:
         #Url for posting login data
         login_url = base_url_str + login_action
         url = base_url_str + login_url
-
+		
+	#session is a dictionary , also attribute of rest_api_lib object
         sess = requests.session()
         #If the vmanage has a certificate signed by a trusted authority change verify to True
         login_response = sess.post(url=login_url, data=login_data, verify=False)
@@ -59,7 +60,8 @@ class rest_api_lib:
         if b'<html>' in login_response.content:
             print ("Login Failed")
             sys.exit(0)
-
+        #set the value of the vmanage_ip key to sess
+        #A key value pair is created for each vmanageip:session
         self.session[vmanage_ip] = sess
 
     def get_request(self, mount_point):
@@ -80,6 +82,23 @@ class rest_api_lib:
         data = response.json()
         return data
     
+    def delete_request(self, mount_point):
+        """DELETE request"""
+        url = "https://%s:8443/dataservice/%s"%(self.vmanage_ip, mount_point)
+        response = self.session[self.vmanage_ip].delete(url=url, verify=False)
+        data=response.status_code
+        return data
+		
+	def put_reqeust(self, mount_point, payload):
+		"""PUT request"""
+		url= "https://%s:8443/dataservice/%s"%(self.vmanage_ip, mount_point)
+		payload=json.dumps(payload)
+		print(payload)
+		response=self.session[self.vmanage_ip].put(url=url, data=payload, verify=False)
+		data=response.json()
+		return data
+    
+    
 #creates an instance of the rest_api_lib class stored in the variable sdwanp which as the methods get_request and post_request
     # get_request returns an instance of response which has the method .json that converts the data into json format
     #rest_api_lib can be extended by adding methods such as delete and put 
@@ -92,8 +111,21 @@ def cli():
     """
     pass
 
+	
+@click.command()
+def put_feature_template(payload_file)
+	f= open(payload_file,'r')
+	template=(f.read()).strip('\n')
+	f.close
+	template_json=json.loads(template)
+    
+    response = sdwanp.put_request('template/device/feature', template_json)
+    print (response)
+	
+
 @click.command()
 def device_list():
+    #store CLI help information in the docstring of each function 
     """Retrieve and return network devices list.
 
         Returns information about each device that is part of the fabric.
@@ -253,7 +285,7 @@ def detach(target, sysip):
 @click.command()
 @click.option("--template", help="Name of the device template you wish to retrieve information for")
 def get_device_template(template):
-    """Retrieve and return devices associated to a template.
+    """Retrieves and saves a template to a text file.
 
         Example command:
 
@@ -267,13 +299,13 @@ def get_device_template(template):
     response = json.loads(sdwanp.get_request(url))
     #saves the payload in a txt file
     save_data=json.dumps(response)
-   
-   
-    #print ("\nTemplate Type: " + response['templateType'])
-    print ("Template Name: " + response['templateName'])
 
-    #use double backslash to avoid unicode escape
-    #filename =  "C:\\Users\\t934159\\Documents\\GitHub\\Getting-started-with-Cisco-SD-WAN-REST-API\\response\\{0}.txt".format(response['templateName'])
+    print ("Template Name: " + response['templateName'])
+	
+    #a txt file with the filename of the templateName will be created in the
+    #same directory as the python script, you can also add a directory to save the file to.  
+    #use double backslash to avoid unicode escape for /
+    #filename =  "directory path {0}.txt".format(response['templateName'])
     filename = "{0}.txt".format(response['templateName'])
 
     f = open(filename,'w')
@@ -288,23 +320,35 @@ def get_device_template(template):
 @click.option("--payload_file", help="Name the JSON template file")
 
 def create_device_template(template_name,payload_file):
+    """Uploads a device template to vManage.
 
+        Example command:
+
+            .sdwanJC.py create_device_template --template_name JC_API_TESTx --payload_file JC_API_Devicetemplate_test.txt
+
+    """
+    f = open(payload_file,'r')
+    template = (f.read()).strip('\n')
+    f.close()
+    #convert txt file into dictionary format to use the key templateName to retrieve the name value
+    template_json = json.loads(template)
+
+    template_json['templateName']=template_name
     
-        f = open(payload_file,'r')
-        template = (f.read()).strip('\n')
-        f.close()
-    #turns file into dictionary format to use the key templateName to retrieve the name value
-        template_json = json.loads(template)
+    response = sdwanp.post_request('template/device/feature', template_json)
+    print (response)
 
-        template_json['templateName']=template_name
-        
-    #turns dictionary back into the file formate using json.dumps
-       # payload = json.dumps(template_json)
+@click.command()
+@click.option("--template", help="Name of the template you wish to delete")
+def delete_device_template(template):
+    """ Delete Device Template ID """
+    
+    url = "template/device/{0}".format(template)
+    response = sdwanp.delete_request(url)
+ 
+    print(response)
 
-        response = sdwanp.post_request('template/device/feature', template_json)
-        print (response)
 
-            
 
 cli.add_command(attach)
 cli.add_command(detach)
@@ -313,6 +357,7 @@ cli.add_command(create_device_template)
 cli.add_command(device_list)
 cli.add_command(attached_devices)
 cli.add_command(template_list)
+cli.add_command(delete_device_template)
 
 if __name__ == "__main__":
     cli()
